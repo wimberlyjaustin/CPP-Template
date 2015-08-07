@@ -1,0 +1,288 @@
+#!/bin/bash
+# generate is a bash script to automate project management
+# Copyright (C) 2015 Austin Wimberly
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Set script options
+NAME="PROJECT NAME HERE"
+FORMAT=false
+DOCUMENT=false
+BUILD=false
+RUN=false
+ALL=false
+
+# Set build options
+RELEASE=false
+DEBUG=false
+UNITTEST=false
+RENEW=false
+
+# Check parameters and set build options
+checkparams()
+{
+	while [[ $# > 0 ]]
+	do
+		key="$1"
+
+		case $key in
+			format)
+			FORMAT=true
+			;;
+
+			document)
+			DOCUMENT=true
+			;;
+
+			build)
+			BUILD=true
+			;;
+
+			run)
+			RUN=true
+			;;
+
+			all)
+			ALL=true
+			;;
+
+			-h | --help)
+			echo -e "Usage: generate [OPTIONS]\nOption\tLong option\tMeaning\nformat\t\t\tFormat the source files\ndocument\t\tDocument the project\nbuild\t\t\tBuild the project\nrun\t\t\tRun the generated project executable(s)\nall\t\t\tFormat, document, build, and run the project\n-h\t--help\t\tShow this message and exit\n-r\t--release\tRelease build mode\n-d\t--debug\t\tDebug build mode\n-u\t--unittest\tUnittest build mode\n-rn\t--renew\t\tRenew build mode\n"
+			;;
+
+			-r | --release)
+			RELEASE=true
+			;;
+	
+			-d | --debug)
+			DEBUG=true
+			;;
+
+			-u | --unittest)
+			UNITTEST=true
+			;;
+
+			-rn | --renew)
+			RENEW=true
+			;;
+	
+			*)
+				# Undefined option
+			;;
+		esac
+
+		shift
+	done
+
+	if [ $DEBUG = false ] && [ $UNITTEST = false ] && [ $RELEASE = false ]; then
+		RELEASE=true
+	fi
+}
+
+# Format the source files
+format()
+{
+	astyle -T4 -N -O -xC80 -r "src/*.cpp" "src/*.hpp" "tests/*.cpp" "tests/*.hpp" "include/*.cpp" "include/*.hpp"
+
+	# copy or move Artistic Style backup files to a backup directory
+
+	# CHANGE THE FOLLOWING 4 VARIABLES
+	# $indir is the input top level directory containing the .orig files
+	# $outdir is the output top level directory containing the moved files
+	# $fileext is the backup file extension
+	# $copyfiles is COPY (cp) or MOVE (mv) the files
+	# spaces ARE allowed in directory and file name (for Cygwin on Windows)
+
+	indir="src"
+	outdir="backup"
+	fileext="orig"
+	# USE ONE OF THE FOLLOWING TO COPY OR MOVE THE FILES
+	#copyfiles=cp
+	copyfiles=mv
+
+	# display the variables
+	echo
+	echo "\"$copyfiles\" Artistic Style backup files"
+	echo "FROM $indir"
+	echo "TO   $outdir"
+	echo
+
+	# validate input directory
+	if [ ! -d "$indir" ] ; then
+		echo "Input directory does not exist!"
+		echo
+		exit
+	fi
+	if [ "$indir" == "$outdir" ]; then
+		echo "Input and output directories are the same!"
+		echo
+		exit
+	fi
+
+	# optional statement to run Artistic Style
+	# astyle  -R  "%indir%\*.cpp"  "%indir%\*.h"
+	# if [ $? -ne 0 ] ; then  read -sn1 -p "Error executing astyle!"; fi
+
+	# variables for fle processing
+	#echo "processing files..."
+	fileHasSpaces=false         # a file or directory name has spaces
+	extLength=${#fileext}       # length of the file extension
+
+	# loop thru the input directory to find the .orig files
+	# then move the .orig file to the new directory
+	for file in `find  "$indir"  -type f  -name "*$fileext" ` ; do
+
+		# allow spaces in file names for Cygwiin on Windows
+		# test if this is a continuation line and build $infile
+		if [ $fileHasSpaces = true ] ; then
+			infile+=' '$file
+		else
+			infile=$file
+		fi
+	 
+		# test end of string for no file extension
+		if [ ! "${infile:(-$extLength)}" = $fileext ] ; then	
+			fileHasSpaces=true
+			continue
+		fi
+
+		fileHasSpaces=false
+	#	echo $infile
+
+		# replace input file directory with output directory
+		# ${string/substring/replacement}
+		outfile=${infile/$indir/$outdir}
+	#	echo $outfile
+
+		# strip filename from back of the output file
+		# ${string%substring} - /* strips from last '/' to end
+		outpath=${outfile%/*}
+	#	echo $outpath
+
+		# create output directory
+		[ ! -d  "$outpath" ] && mkdir  -p  "$outpath"
+
+		#  copy or move the files
+		$copyfiles  -f  "$infile"  "$outpath"
+		if [ $? -ne 0 ] ; then  
+			read -sn1 -p "press any key to continue!"
+			echo
+		fi
+
+		# echo for every 100 files processed
+		let count++
+		let mod=count%100
+		[ $mod -eq 0 ] && echo $count files processed
+	done
+
+	echo $count files processed
+	echo
+}
+
+# Document the project
+document()
+{
+	doxygen Doxyfile
+}
+
+# Build the project
+build()
+{
+	[ ! -d build/release ] || [ ! -d build/debug ] || [ ! -d build/unittest ] && RENEW=true
+
+	if [ $RENEW = true ]; then
+		[ -d build ] && rm -r build
+		mkdir -p build/{release,debug,unittest}
+	fi
+
+	if [ $RELEASE = true ]; then
+		cd build/release
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Release ../..
+		make
+		cd ../..
+	fi
+
+	if [ $DEBUG = true ]; then
+		cd build/debug
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug ../..
+		make
+		cd ../..
+	fi
+
+	if [ $UNITTEST = true ]; then
+		cd build/unittest
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TEST=ON ../..
+		make
+		cd ../..
+	fi
+}
+
+# Run the generated project executable(s)
+run()
+{
+	if [ $DEBUG = false ] && [ $UNITTEST = false ] && [ $RELEASE = false ]; then
+		cd build/release
+		./$NAME
+		cd ../..
+	fi
+
+	if [ $UNITTEST = true ]; then
+		cd build/unittest
+		make test
+		cd ../..
+	fi
+
+	if [ $DEBUG = true ]; then
+		cd build/debug
+		./$NAME
+		cd ../..
+	fi
+
+	if [ $RELEASE = true ]; then
+		cd build/release
+		./$NAME
+		cd ../..
+	fi
+}
+
+# Format, document, build, and run the project
+all()
+{
+	format
+	document
+	build
+	run
+}
+
+checkparams "$@"
+
+if [ $ALL = true ]; then
+	all
+else
+	if [ $FORMAT = true ]; then
+		format
+	fi
+
+	if [ $DOCUMENT = true ]; then
+		document
+	fi
+
+	if [ $BUILD = true ]; then
+		build
+	fi
+
+	if [ $RUN = true ]; then
+		run
+	fi
+fi

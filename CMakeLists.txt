@@ -1,53 +1,62 @@
-# Minimum required CMake version
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.3)
 
-# Project name
-project(NAMEHERE)
+project(TexKit)
 
-# The version number
-set(NAMEHERE_VERSION_MAJOR 0)
-set(NAMEHERE_VERSION_MINOR 1)
+option(BUILD_SHARED_LIBS "Build shared library" ON)
+option(BUILD_TESTING "Build unittests" OFF)
+option(BUILD_EXAMPLES "Build examples" OFF)
 
-# Compiler instructions
 set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 set(CMAKE_CXX_FLAGS "-std=c++14")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-# Set source files
-set(Sources
-	#src/whatever.cpp
+set(TEXKIT_VERSION_MAJOR "0")
+set(TEXKIT_VERSION_MINOR "1")
+set(TEXKIT_VERSION_PATCH "0")
+set(TEXKIT_VERSION_EXTRA "")
+set(TEXKIT_VERSION "${TEXKIT_VERSION_MAJOR}.${TEXKIT_VERSION_MINOR}")
+set(TEXKIT_VERSION_FULL "${TEXKIT_VERSION}.${TEXKIT_VERSION_PATCH}${TEXKIT_VERSION_EXTRA}")
+set(LIB_SUFFIX "" CACHE STRING "Takes an empty string or 64. Directory where lib will be installed: lib or lib64")
+
+set(includes
+	${PROJECT_SOURCE_DIR}/include/TexKit/test.hpp
 )
 
-# Option to build unittest version
-option(BUILD_TEST "Build test version" OFF)
+set(sources
+	${PROJECT_SOURCE_DIR}/src/test.cpp
+)
 
 # Configure a header file to pass some of the CMake settings to the source code
 configure_file(
-	"${PROJECT_SOURCE_DIR}/src/config.hpp.in"
-	"${PROJECT_BINARY_DIR}/config.hpp"
+	${PROJECT_SOURCE_DIR}/src/config.hpp.in
+	${PROJECT_BINARY_DIR}/config.hpp
 )
 
-# Add the binary tree to the search path for include files so that we will find
-# config.h
-include_directories("${PROJECT_BINARY_DIR}")
+# Shared library unless BUILD_SHARED_LIBS is false
+add_library(texkit ${sources} ${includes})
 
+# Add include directories to target library
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Optionally build unittests and add the install targets
-if (BUILD_TEST)
+# If BUILD_TESTING, then build tests
+if (BUILD_TESTING)
 	enable_testing()
-	
-	#add_executable(NAMEHERE_test1 tests/test1.cpp ${Sources})
-	#add_test(NAMEHERE_test1 NAMEHERE_test1)
-	
-	#add_executable(NAMEHERE_test2 tests/test2.cpp ${Sources})
-	#add_test(NAMEHERE_test2 NAMEHERE_test2)
-	
-	#install(TARGETS NAMEHERE_test1 NAMEHERE_test2 DESTINATION bin)
-else ()
-	#add_executable(NAMEHERE src/main.cpp ${Sources})
-	
-	#install(TARGETS NAMEHERE DESTINATION bin)
-endif (BUILD_TEST)
+	add_executable(test_1 ${PROJECT_SOURCE_DIR}/tests/test_1.cpp ${includes})
+	target_link_libraries(test_1 texkit)
+	add_test(test_1 test_1)
+endif (BUILD_TESTING)
 
-install(FILES "${PROJECT_BINARY_DIR}/config.hpp" DESTINATION include)
+# If BUILD_EXAMPLES, then build examples
+if (BUILD_EXAMPLES)
+	add_executable(example_1 ${PROJECT_SOURCE_DIR}/examples/example_1.cpp ${includes})
+	target_link_libraries(example_1 texkit)
+endif (BUILD_EXAMPLES)
+
+install(FILES
+	${PROJECT_BINARY_DIR}/config.hpp
+	${PROJECT_SOURCE_DIR}/include/TexKit/test.hpp
+	DESTINATION include/TexKit
+)
+
+install(TARGETS texkit DESTINATION lib)

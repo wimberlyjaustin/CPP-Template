@@ -13,17 +13,14 @@ detect_indent_width=false
 indent_mode=2
 
 [project]
-name=NAMEHERE
+name=TexKit
 base_path=./
-description=
+description=In progress...
 file_patterns=*.cpp;*.hpp;*hpp.in;
 
 [long line marker]
 long_line_behaviour=2
 long_line_column=80
-
-[files]
-current_page=-1
 
 [build-menu]
 EX_00_LB=Run
@@ -65,3 +62,6 @@ C++FT_02_WD=%p
 line_wrapping=false
 line_break_column=80
 auto_continue_multiline=true
+
+[files]
+current_page=-1

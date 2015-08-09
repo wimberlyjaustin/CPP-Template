@@ -1,32 +1,23 @@
 #!/bin/bash
-# generate is a bash script to automate project management
-# Copyright (C) 2015 Austin Wimberly
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# generate is a small bash script to automate project management
+# This is free and unencumbered software released into the public domain.
 
 # Set script options
-NAME="PROJECT NAME HERE"
+NAME="TexKit"
 FORMAT=false
 DOCUMENT=false
 BUILD=false
 RUN=false
+INSTALL=false
+ALLBUTINSTALL=false
 ALL=false
+CLEAN=false
 
 # Set build options
 RELEASE=false
 DEBUG=false
 UNITTEST=false
+EXAMPLES=false
 RENEW=false
 
 # Check parameters and set build options
@@ -52,13 +43,25 @@ checkparams()
 			run)
 			RUN=true
 			;;
+			
+			install)
+			INSTALL=true
+			;;
+
+			allbutinstall)
+			ALLBUTINSTALL=true
+			;;
 
 			all)
 			ALL=true
 			;;
+			
+			clean)
+			CLEAN=true
+			;;
 
 			-h | --help)
-			echo -e "Usage: generate [OPTIONS]\nOption\tLong option\tMeaning\nformat\t\t\tFormat the source files\ndocument\t\tDocument the project\nbuild\t\t\tBuild the project\nrun\t\t\tRun the generated project executable(s)\nall\t\t\tFormat, document, build, and run the project\n-h\t--help\t\tShow this message and exit\n-r\t--release\tRelease build mode\n-d\t--debug\t\tDebug build mode\n-u\t--unittest\tUnittest build mode\n-rn\t--renew\t\tRenew build mode\n"
+			echo -e "Usage: generate [OPTIONS]\nOption\tLong option\tMeaning\nformat\t\t\tFormat the source files\ndocument\t\tDocument the project\nbuild\t\t\tBuild the project\nrun\t\t\tRun the generated project executable(s)\ninstall\t\t\tInstall the project\nallbutinstall\t\tFormat, document, build, and run the project\nall\t\t\tFormat, document, build, run, and install the project\nclean\t\t\tClean the project directory\n-h\t--help\t\tShow this message and exit\n-r\t--release\tRelease build mode\n-d\t--debug\t\tDebug build mode\n-u\t--unittest\tUnittest build mode\n-e\t--examples\tBuild examples\n-rn\t--renew\t\tMake new build\n"
 			;;
 
 			-r | --release)
@@ -71,6 +74,10 @@ checkparams()
 
 			-u | --unittest)
 			UNITTEST=true
+			;;
+			
+			-e | --examples)
+			EXAMPLES=true
 			;;
 
 			-rn | --renew)
@@ -88,12 +95,18 @@ checkparams()
 	if [ $DEBUG = false ] && [ $UNITTEST = false ] && [ $RELEASE = false ]; then
 		RELEASE=true
 	fi
+	
+	if [ $ALLBUTINSTALL = true ]; then
+		ALL=false
+	elif [ $ALL = true ]; then
+		ALLBUTINSTALL=false
+	fi
 }
 
 # Format the source files
 format()
 {
-	astyle -T4 -N -O -xC80 -r "src/*.cpp" "src/*.hpp" "tests/*.cpp" "tests/*.hpp" "include/*.cpp" "include/*.hpp"
+	astyle -T4 -N -O -xC80 -r "src/*.cpp" "src/*.hpp" "tests/*.cpp" "tests/*.hpp" "include/TexKit/*.cpp" "include/TexKit/*.hpp"
 
 	# copy or move Artistic Style backup files to a backup directory
 
@@ -199,30 +212,36 @@ document()
 # Build the project
 build()
 {
+	CMAKEOPT="-DCMAKE_INSTALL_PREFIX:PATH=/usr ../.."
+	
 	[ ! -d build/release ] || [ ! -d build/debug ] || [ ! -d build/unittest ] && RENEW=true
-
+	
 	if [ $RENEW = true ]; then
 		[ -d build ] && rm -r build
 		mkdir -p build/{release,debug,unittest}
 	fi
+	
+	if [ $EXAMPLES = true ]; then
+		CMAKEOPT="-DBUILD_EXAMPLES=true $CMAKEOPT"
+	fi
 
 	if [ $RELEASE = true ]; then
 		cd build/release
-		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Release ../..
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Release $CMAKEOPT
 		make
 		cd ../..
 	fi
 
 	if [ $DEBUG = true ]; then
 		cd build/debug
-		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug ../..
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug $CMAKEOPT
 		make
 		cd ../..
 	fi
 
 	if [ $UNITTEST = true ]; then
 		cd build/unittest
-		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TEST=ON ../..
+		[ ! -f Makefile ] && cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON $CMAKEOPT
 		make
 		cd ../..
 	fi
@@ -231,33 +250,37 @@ build()
 # Run the generated project executable(s)
 run()
 {
-	if [ $DEBUG = false ] && [ $UNITTEST = false ] && [ $RELEASE = false ]; then
-		cd build/release
-		./$NAME
-		cd ../..
-	fi
-
 	if [ $UNITTEST = true ]; then
 		cd build/unittest
 		make test
+		./example_*
 		cd ../..
 	fi
 
 	if [ $DEBUG = true ]; then
 		cd build/debug
-		./$NAME
+		./example_*
 		cd ../..
 	fi
 
 	if [ $RELEASE = true ]; then
 		cd build/release
-		./$NAME
+		./example_*
+		cd ../..
+	fi
+}
+
+install()
+{
+	if [ $RELEASE = true ]; then
+		cd build/release
+		sudo make install
 		cd ../..
 	fi
 }
 
 # Format, document, build, and run the project
-all()
+allbutinstall()
 {
 	format
 	document
@@ -265,9 +288,27 @@ all()
 	run
 }
 
+# Format, document, build, run, and install the project
+all()
+{
+	format
+	document
+	build
+	run
+	install
+}
+
+# Clean the project directory
+clean()
+{
+	rm -r build doc backup
+}
+
 checkparams "$@"
 
-if [ $ALL = true ]; then
+if [ $ALLBUTINSTALL = true ]; then
+	allbutinstall
+elif [ $ALL = true ]; then
 	all
 else
 	if [ $FORMAT = true ]; then
@@ -285,4 +326,12 @@ else
 	if [ $RUN = true ]; then
 		run
 	fi
+	
+	if [ $INSTALL = true ]; then
+		install
+	fi
+fi
+
+if [ $CLEAN = true ]; then
+	clean
 fi
